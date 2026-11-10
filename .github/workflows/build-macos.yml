@@ -41,6 +41,6 @@ jobs:
           name: Quran-Reader-Lite-macOS-Universal
           path: |
             release/*.dmg
-            release/*.zip
+            # release/*.zip
           if-no-files-found: error
           retention-days: 14
