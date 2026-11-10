@@ -17,4 +17,4 @@ function run(command, args) {
 
 run('npm', ['run', 'build']);
 run('npm', ['run', 'prepare:electron']);
-run('npx', ['electron-builder', '--config', 'electron-builder.mac.yml', '--mac']);
+run('npx', ['electron-builder', '--config', 'electron-builder.mac.yml', '--mac', '--publish', 'never']);
