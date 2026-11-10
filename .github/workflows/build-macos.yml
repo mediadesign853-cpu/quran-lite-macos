@@ -1,0 +1,46 @@
+
+name: Build macOS - Quran Reader Lite
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    name: Build macOS Universal
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check project
+        run: npm run check
+
+      - name: Build macOS app
+        run: npm run dist:mac
+
+      - name: Upload DMG and ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quran-Reader-Lite-macOS-Universal
+          path: |
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: error
+          retention-days: 14
