@@ -1,0 +1,115 @@
+```gitignore
+# ============================================================
+# Quran Reader
+# Vite + React + TypeScript + Electron + Python
+# ============================================================
+
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+dist-ssr/
+dist-electron/
+release/
+electron/dist/
+out/
+coverage/
+
+# Electron Builder artifacts
+*.asar
+*.blockmap
+builder-debug.yml
+builder-effective-config.yaml
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# Logs
+*.log
+logs/
+*.stackdump
+
+# Caches and tooling
+.vite/
+**/.vite/
+.cache/
+.parcel-cache/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.venv/
+venv/
+ENV/
+env/
+pip-wheel-metadata/
+*.egg-info/
+.eggs/
+htmlcov/
+
+# Operating systems
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+._*
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Temporary and backup files
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+*.rej
+*.backup
+*.swp
+*.swo
+*~
+temp/
+tmp/
+.local/
+*.local
+
+# Tests and reports
+test-results/
+playwright-report/
+blob-report/
+.nyc_output/
+```

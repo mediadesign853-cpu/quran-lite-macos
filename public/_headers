@@ -1,0 +1,11 @@
+# Cache rules for Netlify / Cloudflare Pages (other hosts: see README.md, "Publishing the PWA").
+# The files that decide whether an update exists must never be served from an old cache:
+/sw.js
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/manifest.json
+  Cache-Control: no-cache
+# files with a hash in their name never change: keep them for a year
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -1,0 +1,8 @@
+QURAN TEXT
+  Tanzil Quran Text (Simple, Version 1.1) - Copyright (C) 2007-2026 Tanzil Project
+  License: Creative Commons Attribution 3.0 - https://tanzil.net
+  Permission is granted to copy and distribute verbatim copies of this text, but CHANGING IT IS NOT ALLOWED.
+  Used with its source (Tanzil Project) indicated and a link to tanzil.net.
+  Handling in this app: pause marks / sajda / rub-el-hizb signs are not included, and the Bismillah that the SQL
+  file repeats in front of the first ayah of each surah (2-114 except 9) is shown once, as the heading, with the
+  text of ayah 1:1 of the SQL file (the prefix of surahs 95 and 97 in the file has a stray shadda). Words and letters are not changed.

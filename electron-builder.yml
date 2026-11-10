@@ -1,0 +1,49 @@
+# Windows installer (NSIS):  npm run dist:win   ->  release/Quran Reader Lite Setup <version>.exe
+appId: com.quranreader.lite
+productName: Quran Reader Lite
+copyright: Quran text © Tanzil Project (CC BY 3.0)
+
+directories:
+  output: release
+  buildResources: build
+
+# The desktop shell and web app are bundled; page images and the small footnote bridge are extra resources.
+files:
+  - electron/main.cjs
+  - electron/preload.cjs
+  - electron/dist/**/*
+  - "!**/node_modules/**"
+
+# Page images stay outside app.asar, in <install folder>/resources/pages (the shell reads them from there).
+extraResources:
+  - from: electron/pages
+    to: pages
+    filter:
+      - "*.webp"
+      - boxes.json
+  - from: electron/integrations/insert-footnote.ps1
+    to: integrations/insert-footnote.ps1
+  - from: electron/integrations/insert-footnote.jsx
+    to: integrations/insert-footnote.jsx
+
+asar: true
+compression: normal
+electronLanguages: [en-US, ar, fa]   # only the languages the app needs: a smaller installer
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.ico
+  signAndEditExecutable: false       # no code-signing certificate: builds also on Linux / macOS without Wine
+
+nsis:
+  oneClick: false                    # the user chooses the folder
+  perMachine: false                  # installs for the current user: no administrator rights needed
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Quran Reader Lite
+  deleteAppDataOnUninstall: false    # bookmarks, history and settings survive an uninstall / reinstall

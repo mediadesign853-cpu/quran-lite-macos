@@ -1,0 +1,44 @@
+# macOS Lite build: npm run dist:mac
+appId: com.quranreader.lite
+productName: Quran Reader Lite
+copyright: Quran text © Tanzil Project (CC BY 3.0)
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - electron/main.cjs
+  - electron/preload.cjs
+  - electron/dist/**/*
+  - "!**/node_modules/**"
+
+extraResources:
+  - from: electron/pages
+    to: pages
+    filter:
+      - "*.webp"
+      - boxes.json
+  - from: electron/integrations/insert-footnote.jsx
+    to: integrations/insert-footnote.jsx
+
+asar: true
+compression: normal
+electronLanguages: [en-US, ar, fa]
+
+mac:
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  category: public.app-category.education
+  extendInfo:
+    NSAppleEventsUsageDescription: "Quran Reader Lite uses Apple Events to insert real footnotes into Microsoft Word and Adobe InDesign."
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch: universal
+    - target: zip
+      arch: universal
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+  darkModeSupport: true
+
