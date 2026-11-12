@@ -3,6 +3,13 @@
 # Quran Reader
 # Vite + React + TypeScript + Electron + Python
 # ============================================================
+#Archive
+*.7z
+*.tar
+*.tar.gz
+*.gz
+*.zip
+*.rar
 
 # Dependencies
 node_modules/
