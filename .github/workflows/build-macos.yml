@@ -1,4 +1,3 @@
-
 name: Build macOS - Quran Reader Lite
 
 on:
@@ -8,7 +7,11 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-macos:
@@ -35,11 +38,23 @@ jobs:
       - name: Build macOS app
         run: npm run dist:mac
 
-      - name: Upload DMG and ZIP
+      - name: Upload DMG and ZIP as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: Quran-Reader-Lite-macOS-Universal
           path: |
             release/*.dmg
+            release/*.zip
           if-no-files-found: error
           retention-days: 14
+
+      # Tag pushes attach to that tag's release; manual runs attach to v1.0.0.
+      - name: Attach installers to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --title "Quran Reader Lite macOS $RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" release/*.dmg release/*.zip --clobber
