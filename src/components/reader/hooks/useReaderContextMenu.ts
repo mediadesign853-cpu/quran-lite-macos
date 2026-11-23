@@ -50,6 +50,7 @@ export function useReaderContextMenu({
           settings.copyNumberStyle,
           surahMeta?.name ?? '',
           settings.copyAyahBracketStyle,
+          settings.omitLastAyahNumber,
         )
       : null;
 
@@ -69,7 +70,7 @@ export function useReaderContextMenu({
       selectedText,
       selectedPayload,
     });
-  }, [scrollRef, settings.copyNumberStyle, settings.copyReferenceStyle, settings.copyAyahBracketStyle, surahMeta?.name]);
+  }, [scrollRef, settings.copyNumberStyle, settings.omitLastAyahNumber, settings.copyReferenceStyle, settings.copyAyahBracketStyle, surahMeta?.name]);
 
   const menuItems = useMemo<ContextMenuItem[]>(() => {
     if (!menu || !surahData) return [];

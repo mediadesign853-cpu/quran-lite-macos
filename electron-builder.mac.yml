@@ -9,6 +9,8 @@ directories:
 
 files:
   - electron/main.cjs
+  - electron/security.cjs
+  - electron/protocol-handlers.cjs
   - electron/preload.cjs
   - electron/dist/**/*
   - "!**/node_modules/**"

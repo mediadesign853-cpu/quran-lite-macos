@@ -11,8 +11,8 @@ declare global {
     quranApp?: {
       /** true only when all page images are installed */
       pages: boolean;
-      /** Inserts text into the active Word/InDesign document and creates a real footnote. */
-      insertFootnote?: (payload: { target: 'word' | 'indesign'; text: string; reference: string; language: Language }) => Promise<{ ok: boolean; message?: string }>;
+      /** Inserts into the active Word/InDesign document; existing footnotes receive inline text. */
+      insertFootnote?: (payload: { target: 'word' | 'indesign'; text: string; reference: string; language: Language }) => Promise<{ ok: boolean; message?: string; code?: string }>;
     };
   }
 }

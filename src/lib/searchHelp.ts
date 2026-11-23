@@ -1,7 +1,7 @@
 import type { SurahMeta } from '@/types/quran';
 import {
   normalizeSearch,
-  searchAyahs,
+  hasExactAyahMatch,
   searchSurahNames,
   stripMarks,
   type SearchIndex,
@@ -78,6 +78,8 @@ interface Vocabulary {
 }
 
 const vocabularies = new WeakMap<SearchIndex, Vocabulary>();
+const suggestionCaches = new WeakMap<SearchIndex, Map<string, string | null>>();
+const MAX_CACHED_SUGGESTIONS = 64;
 
 function withoutOneLetter(word: string): string[] {
   return Array.from({ length: word.length }, (_, i) => word.slice(0, i) + word.slice(i + 1));
@@ -99,7 +101,11 @@ function getVocabulary(index: SearchIndex): Vocabulary {
     }
   }
   const deletes = new Map<string, string[]>();
-  const register = (key: string, word: string) => deletes.set(key, [...(deletes.get(key) ?? []), word]);
+  const register = (key: string, word: string) => {
+    const bucket = deletes.get(key);
+    if (bucket) bucket.push(word);
+    else deletes.set(key, [word]);
+  };
   for (const word of words.keys()) {
     register(word, word);
     if (word.length >= 3) for (const d of new Set(withoutOneLetter(word))) register(d, word);
@@ -145,10 +151,26 @@ function splitInTwo(vocabulary: Vocabulary, token: string): string[] | null {
  * A corrected form of the query that finds something, or null. It fixes words that are not in the
  * Quran: a space inside a word ("أ فحسب"), a missing space, or one wrong / missing / extra letter ("احذ").
  */
-export function suggestQuery(index: SearchIndex, surahs: SurahMeta[], query: string): string | null {
+export function suggestQuery(index: SearchIndex, query: string): string | null {
+  const normalizedQuery = normalizeSearch(query);
+  let cache = suggestionCaches.get(index);
+  if (cache?.has(normalizedQuery)) return cache.get(normalizedQuery) ?? null;
+  if (!cache) {
+    cache = new Map<string, string | null>();
+    suggestionCaches.set(index, cache);
+  }
+  const remember = (value: string | null): string | null => {
+    cache!.set(normalizedQuery, value);
+    if (cache!.size > MAX_CACHED_SUGGESTIONS) {
+      const oldest = cache!.keys().next().value;
+      if (oldest !== undefined) cache!.delete(oldest);
+    }
+    return value;
+  };
+
   const vocabulary = getVocabulary(index);
-  const tokens = normalizeSearch(query).split(' ').filter(Boolean);
-  if (tokens.length === 0) return null;
+  const tokens = normalizedQuery.split(' ').filter(Boolean);
+  if (tokens.length === 0) return remember(null);
 
   // for every position, the words it could be (best first)
   const options: string[][] = [];
@@ -163,22 +185,28 @@ export function suggestQuery(index: SearchIndex, surahs: SurahMeta[], query: str
     }
   }
 
-  // try the combinations in order of likelihood (at most 30) and keep the first one that finds ayahs
+  // Try the combinations in order of likelihood (at most 30). A boolean exact-match
+  // check is enough here; running the full search would also build snippets and loose matches.
   const original = tokens.join(' ');
+  const MAX_CANDIDATE_CHECKS = 30;
   let tries = 0;
   const pick = (position: number, chosen: string[]): string | null => {
     if (position === options.length) {
       const candidate = chosen.join(' ');
-      if (candidate === original || tries++ >= 30) return null;
-      return searchAyahs(index, surahs, candidate).exact > 0 ? candidate : null;
+      if (candidate === original || tries >= MAX_CANDIDATE_CHECKS) return null;
+      tries += 1;
+      return hasExactAyahMatch(index, candidate) ? candidate : null;
     }
     for (const option of options[position]) {
       const found = pick(position + 1, [...chosen, option]);
       if (found) return found;
+      if (tries >= MAX_CANDIDATE_CHECKS) break;
     }
     return null;
   };
   const found = pick(0, []);
-  // show the words as they are written in the Quran (with hamza forms, without marks)
-  return found ? found.split(' ').map((w) => vocabulary.words.get(w)?.shown ?? w).join(' ') : null;
+  // Show the words as they are written in the Quran (with hamza forms, without marks).
+  return remember(found
+    ? found.split(' ').map((w) => vocabulary.words.get(w)?.shown ?? w).join(' ')
+    : null);
 }

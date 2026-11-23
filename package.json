@@ -3,6 +3,17 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "description": "Quran Lite",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mediadesign853-cpu/quran-lite-macos.git"
+  },
+  "main": "electron/main.cjs",
+  "author": "Quran Reader",
+  "engines": {
+    "node": ">=22.13.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,37 +22,41 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "prepare:electron": "node scripts/prepare-electron.mjs",
     "electron:dev": "npm run build && npm run prepare:electron && electron .",
-    "dist:win": "npm run build && npm run prepare:electron && electron-builder --config electron-builder.yml --win",
     "verify:data": "node scripts/verify-data.mjs",
-    "check": "npm run verify:data && npm run typecheck && npm run lint && npm run build",
+    "test:electron-security": "node --test scripts/test-electron-security.cjs",
+    "check": "npm run verify:data && npm run test:electron-security && npm run typecheck && npm run lint && npm run build",
     "dist:mac": "node scripts/build-mac.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
     "@fontsource/vazirmatn": "^5.3.0",
-    "lucide-react": "^1.70.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "lucide-react": "^1.78.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.9.1",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.4.18",
-    "electron": "^44.5.1",
-    "electron-builder": "^26.15.3",
-    "eslint": "^9.9.1",
-    "eslint-plugin-react-hooks": "^5.1.0-rc.0",
-    "eslint-plugin-react-refresh": "^0.4.11",
-    "globals": "^15.9.0",
-    "postcss": "^8.4.35",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5.5.3",
-    "typescript-eslint": "^8.3.0",
-    "vite": "^5.4.2"
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.1",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.8",
+    "globals": "^17.14.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8"
   },
-  "description": "Quran Reader Lite: Arabic Quran text, offline reading and search for Windows and macOS desktop.",
-  "main": "electron/main.cjs",
-  "author": "Quran Reader"
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch": "11.0.9",
+      "@electron/universal": "3.0.6"
+    }
+  }
 }

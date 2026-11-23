@@ -30,9 +30,16 @@ export default function BookmarksPanel({ isOpen, onClose, language, onNavigate }
   ]
     .sort((a, b) => a - b)
     .join(','); 
-  const [surahData, setSurahData] = useState<Record<number, SurahDisplayData>>({});
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState(false);
+  const [loadState, setLoadState] = useState<
+    | { key: string; status: 'loaded'; data: Record<number, SurahDisplayData> }
+    | { key: string; status: 'error' }
+    | null
+  >(null);
+  const loading = Boolean(isOpen && surahNumbersKey && loadState?.key !== surahNumbersKey);
+  const loadError = Boolean(surahNumbersKey && loadState?.key === surahNumbersKey && loadState.status === 'error');
+  const displaySurahData = loadState?.key === surahNumbersKey && loadState.status === 'loaded'
+    ? loadState.data
+    : {};
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -52,19 +59,12 @@ export default function BookmarksPanel({ isOpen, onClose, language, onNavigate }
   // Load display labels and ayah text from the canonical Quran files; the bookmark store itself
   // contains only surah/ayah IDs so it never becomes stale after a text or metadata correction.
   useEffect(() => {
-    if (!isOpen || !surahNumbersKey) {
-      setSurahData({});
-      setLoading(false);
-      setLoadError(false);
-      return;
-    }
+    if (!isOpen || !surahNumbersKey) return;
   
     let active = true;
   
     const numbers = surahNumbersKey.split(',').map(Number);
   
-    setLoading(true);
-    setLoadError(false);
   
     Promise.all([
       fetchSurahList(),
@@ -97,13 +97,10 @@ export default function BookmarksPanel({ isOpen, onClose, language, onNavigate }
           }
         }
   
-        setSurahData(next);
+        setLoadState({ key: surahNumbersKey, status: 'loaded', data: next });
       })
       .catch(() => {
-        if (active) setLoadError(true);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+        if (active) setLoadState({ key: surahNumbersKey, status: 'error' });
       });
   
     return () => {
@@ -139,72 +136,76 @@ export default function BookmarksPanel({ isOpen, onClose, language, onNavigate }
         aria-modal={isOpen}
         aria-label={t ? 'آیه‌های نشان‌شده' : 'الآيات المعلّمة'}
         aria-hidden={!isOpen}
-        className={`fixed top-0 right-0 h-full w-80 bg-[var(--bg-card)] shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-out overflow-hidden ${
+        className={`fixed top-0 right-0 h-full w-80 bg-(--bg-card) shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-out overflow-hidden ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="sticky top-0 bg-[var(--bg-card)] border-b border-[var(--border)] px-4 py-3 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-(--bg-card) border-b border-(--border) px-4 py-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
-            <Bookmark className="w-5 h-5 text-[var(--accent)]" />
+            <Bookmark className="w-5 h-5 text-(--accent)" />
             <h2 className="text-sm font-semibold">
               {t ? 'آیه‌های نشان‌شده' : 'الآيات المعلّمة'}
             </h2>
           </div>
-          <button ref={closeButtonRef} onClick={onClose} aria-label={t ? 'بستن پنل نشان‌ها' : 'إغلاق العلامات'} className="p-1.5 rounded-lg hover:bg-[var(--border-light)] transition-smooth focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
-            <X className="w-5 h-5 text-[var(--text-secondary)]" />
+          <button 
+          ref={closeButtonRef} 
+          onClick={onClose} 
+          aria-label={t ? 'بستن پنل نشان‌ها' : 'إغلاق العلامات'} 
+          className="p-1.5 rounded-lg hover:bg-(--border-light) transition-smooth focus-visible:outline-2 focus-visible:outline-(--accent)">
+            <X className="w-5 h-5 text-(--text-secondary)" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {bookmarks.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full px-8 text-center">
-              <Bookmark className="w-12 h-12 text-[var(--border)] mb-3" />
-              <p className="text-sm text-[var(--text-secondary)]">
+              <Bookmark className="w-12 h-12 text-(--border) mb-3" />
+              <p className="text-sm text-(--text-secondary)">
                 {t ? 'هنوز آیه‌ای نشان نشده است' : 'لا توجد آيات معلّمة بعد'}
               </p>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">
+              <p className="text-xs text-(--text-secondary) mt-1">
                 {t ? 'با انتخاب نشان کنار آیه، آن را ذخیره کنید' : 'اضغط على علامة الآية لحفظها'}
               </p>
             </div>
           ) : (
             <div className="p-2">
-              {loading && <p className="px-3 py-2 text-xs text-[var(--text-secondary)]" role="status">{t ? 'در حال بارگذاری آیه‌ها…' : 'جارٍ تحميل الآيات…'}</p>}
+              {loading && <p className="px-3 py-2 text-xs text-(--text-secondary)" role="status">{t ? 'در حال بارگذاری آیه‌ها…' : 'جارٍ تحميل الآيات…'}</p>}
               {loadError && <p className="px-3 py-2 text-xs text-amber-700" role="alert">{t ? 'بارگذاری متن برخی آیه‌ها ناموفق بود؛ می‌توانید با شماره به آن‌ها بروید.' : 'تعذّر تحميل بعض الآيات؛ يمكنك الانتقال إليها بأرقامها.'}</p>}
               {bookmarks.map((bm: BookmarkEntry) => {
-                const detail = surahData[bm.surahNumber];
+                const detail = displaySurahData[bm.surahNumber];
                 const name = detail?.meta.name ?? (t ? `سورهٔ ${bm.surahNumber}` : `سورة ${bm.surahNumber}`);
                 const englishName = detail?.meta.englishName ?? '';
                 const text = detail?.ayahs[bm.ayahNumber - 1] ?? '';
                 return (
                   <div
                     key={bm.key}
-                    className="group flex items-start gap-3 px-3 py-3 rounded-lg mb-1 hover:bg-[var(--bg-secondary)] transition-smooth"
+                    className="group flex items-start gap-3 px-3 py-3 rounded-lg mb-1 hover:bg-(--bg-secondary) transition-smooth"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <BookOpen className="w-4 h-4 text-[var(--accent)]" />
+                    <div className="w-9 h-9 rounded-lg bg-(--accent)/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <BookOpen className="w-4 h-4 text-(--accent)" />
                     </div>
                     <button
                       type="button"
                       onClick={() => handleNavigate(bm.surahNumber, bm.ayahNumber)}
-                      className="flex-1 min-w-0 text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] rounded"
+                      className="flex-1 min-w-0 text-start  focus-visible:outline-2 focus-visible:outline-(--accent) rounded"
                       aria-label={t ? `رفتن به ${name}، آیهٔ ${bm.ayahNumber}` : `الانتقال إلى ${name}، الآية ${bm.ayahNumber}`}
                     >
                       <div className="flex items-center justify-between mb-1 gap-2">
-                        <span className="text-xs font-medium text-[var(--accent)]">
+                        <span className="text-xs font-medium text-(--accent)">
                           {name} · {bm.surahNumber}:{bm.ayahNumber}
                         </span>
-                        <span className="text-xs text-[var(--text-secondary)]">
+                        <span className="text-xs text-(--text-secondary)">
                           {englishName}
                         </span>
                       </div>
-                      <p className="font-quran text-sm text-[var(--text-primary)] leading-relaxed line-clamp-2" dir="rtl">
+                      <p className="font-quran text-sm text-(--text-primary) leading-relaxed line-clamp-2" dir="rtl">
                         {text || (loading ? '…' : '')}
                       </p>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleRemove(bm.surahNumber, bm.ayahNumber)}
-                      className="flex-shrink-0 p-1.5 rounded-lg hover:bg-red-500/10 transition-smooth opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                      className="shrink-0 p-1.5 rounded-lg hover:bg-red-500/10 transition-smooth opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100  focus-visible:outline-2 focus-visible:outline-(--accent)"
                       aria-label={t ? `حذف نشان آیهٔ ${bm.ayahNumber}` : `حذف علامة الآية ${bm.ayahNumber}`}
                     >
                       <Trash2 className="w-4 h-4 text-red-500" />

@@ -54,6 +54,8 @@ export interface AppSettings {
   fontSize: number;
   theme: Theme;
   copyNumberStyle: CopyNumberStyle;
+  /** Omit the verse number after the final ayah in a manual text selection. */
+  omitLastAyahNumber: boolean;
   copyReferenceStyle: CopyReferenceStyle;
   copyAyahBracketStyle: CopyAyahBracketStyle;
 }

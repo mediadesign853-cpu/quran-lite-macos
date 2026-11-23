@@ -1,19 +1,18 @@
 // Desktop shell (Electron). The web app (electron/dist, made by `npm run prepare:electron`) is served
 // through the private address app://quran/, so it runs from files, without a server and without internet.
-const { app, BrowserWindow, Menu, shell, protocol, ipcMain, clipboard } = require('electron');
+const { app, BrowserWindow, Menu, shell, protocol, ipcMain, clipboard, session } = require('electron');
+const { isInternalAppUrl, allowPermissionRequest, allowPermissionCheck } = require('./security.cjs');
+const { createAppProtocolHandler, createPageProtocolHandler } = require('./protocol-handlers.cjs');
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
 const crypto = require('crypto');
 
-// electron-builder's portable target sets PORTABLE_EXECUTABLE_DIR. Keep localStorage,
-// bookmarks, history and settings beside the portable EXE; installed builds use normal userData.
-if (process.env.PORTABLE_EXECUTABLE_DIR) {
-  const portableData = path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'Quran Reader Lite Data');
-  const portableSession = path.join(portableData, 'Session');
-  fs.mkdirSync(portableSession, { recursive: true });
-  app.setPath('userData', portableData);
-  app.setPath('sessionData', portableSession);
+// Only the primary process may initialize storage, protocols, windows, or IPC.
+// Returning here is important: app.quit() alone does not stop module execution.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  return;
 }
 
 protocol.registerSchemesAsPrivileged([
@@ -21,31 +20,17 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'qpage', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
 ]);
 
-if (!app.requestSingleInstanceLock()) app.quit();
-
 // The web app: next to this file, both when running from the project and inside the installed app.asar.
 const ROOT = path.resolve(__dirname, 'dist');
 // Page images (1.webp ... 604.webp and boxes.json): in the project folder electron/pages while developing,
 // and in the "pages" folder next to the app files once installed (electron-builder "extraResources").
 const PAGES_DIR = app.isPackaged ? path.join(process.resourcesPath, 'pages') : path.join(__dirname, 'pages');
-const FOOTNOTE_SCRIPT = app.isPackaged
-  ? path.join(process.resourcesPath, 'integrations', 'insert-footnote.ps1')
-  : path.join(__dirname, 'integrations', 'insert-footnote.ps1');
 const INDESIGN_JSX_TEMPLATE = app.isPackaged
   ? path.join(process.resourcesPath, 'integrations', 'insert-footnote.jsx')
   : path.join(__dirname, 'integrations', 'insert-footnote.jsx');
 
 const FOOTNOTE_TIMEOUT_MS = 90_000;
 const OSASCRIPT_PATH = '/usr/bin/osascript';
-
-function getWindowsPowerShellPath() {
-  const windowsRoot = process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows';
-  const candidates = [
-    path.join(windowsRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
-    path.join(windowsRoot, 'Sysnative', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) || 'powershell.exe';
-}
 
 function writeFootnoteLog(level, details) {
   try {
@@ -268,99 +253,8 @@ async function insertMacNativeFootnote(target, payload) {
 
 /** Insert the Arabic ayah into the target document and make its address a real footnote. */
 function insertNativeFootnote(target, payload) {
-  if (process.platform === 'darwin') return insertMacNativeFootnote(target, payload);
-  if (process.platform !== 'win32') {
-    const message = payload.language === 'fa'
-      ? 'درج پاورقی واقعی در این سیستم‌عامل پشتیبانی نمی‌شود؛ متن آیه و نشانی آن کپی شد.'
-      : 'إدراج الحاشية الحقيقية غير مدعوم في نظام التشغيل هذا؛ تم نسخ الآية ومرجعها.';
-    return Promise.resolve({ ok: false, message });
-  }
-
-  if (!fs.existsSync(FOOTNOTE_SCRIPT)) {
-    writeFootnoteLog('error', { target, reason: 'script-not-found', script: FOOTNOTE_SCRIPT, resourcesPath: process.resourcesPath });
-    return Promise.resolve({ ok: false, message: 'فایل داخلی درج پاورقی در بسته برنامه پیدا نشد.' });
-  }
-
-  const fallbackText = payload.reference ? `${payload.text} ${payload.reference}` : payload.text;
-  clipboard.writeText(fallbackText);
-
-  let payloadPath;
-  try {
-    payloadPath = path.join(app.getPath('temp'), `quran-footnote-${process.pid}-${crypto.randomUUID()}.json`);
-    fs.writeFileSync(payloadPath, JSON.stringify(payload), 'utf8');
-  } catch (error) {
-    writeFootnoteLog('error', { target, reason: 'payload-write-failed', message: error?.message || String(error) });
-    return Promise.resolve({ ok: false, message: 'فایل موقت پاورقی ساخته نشد.' });
-  }
-
-  const powershellPath = getWindowsPowerShellPath();
-  const childEnv = { ...process.env };
-  delete childEnv.__COMPAT_LAYER;
-
-  writeFootnoteLog('info', {
-    target,
-    script: FOOTNOTE_SCRIPT,
-    scriptExists: true,
-    powershell: powershellPath,
-    packaged: app.isPackaged,
-    resourcesPath: process.resourcesPath,
-    timeoutMs: FOOTNOTE_TIMEOUT_MS,
-  });
-
-  return new Promise((resolve) => {
-    execFile(
-      powershellPath,
-      ['-NoLogo', '-NoProfile', '-STA', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', FOOTNOTE_SCRIPT, '-Target', target, '-PayloadPath', payloadPath],
-      { windowsHide: true, timeout: FOOTNOTE_TIMEOUT_MS, maxBuffer: 1024 * 1024, encoding: 'utf8', env: childEnv },
-      (error, stdout, stderr) => {
-        try { fs.rmSync(payloadPath, { force: true }); } catch { /* best-effort cleanup */ }
-
-        const resultLine = String(stdout || '').split(/\r?\n/u).find((line) => line.startsWith('QURAN_RESULT:'));
-        if (resultLine) {
-          try {
-            const result = JSON.parse(resultLine.slice('QURAN_RESULT:'.length));
-            writeFootnoteLog(result.ok ? 'success' : 'warning', {
-              target,
-              message: result.message,
-              processError: error?.message || null,
-              stderr: String(stderr || '').trim().slice(0, 4000),
-            });
-            resolve(result);
-            return;
-          } catch (parseError) {
-            writeFootnoteLog('error', { target, reason: 'invalid-result-json', message: parseError?.message || String(parseError) });
-          }
-        }
-
-        const details = String(stderr || '').trim();
-        const stdoutText = String(stdout || '').trim();
-        const timedOut = error?.killed || error?.code === 'ETIMEDOUT';
-        const message = timedOut
-          ? 'اجرای ارتباط با Word یا InDesign بیش از ۹۰ ثانیه طول کشید. مطمئن شوید برنامه مقصد باز و آماده است.'
-          : error?.code === 'ENOENT'
-            ? 'Windows PowerShell در ویندوز پیدا نشد؛ قابلیت پاورقی به Windows PowerShell 5.1 نیاز دارد.'
-            : details || stdoutText || error?.message || 'درج پاورقی انجام نشد.';
-
-        writeFootnoteLog('error', {
-          target,
-          reason: 'powershell-process-failed',
-          code: error?.code || null,
-          message: error?.message || null,
-          stderr: details.slice(0, 4000),
-          stdout: stdoutText.slice(0, 4000),
-        });
-        resolve({ ok: false, message });
-      }
-    );
-  });
+  return insertMacNativeFootnote(target, payload);
 }
-const MIME = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
-  '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
-  '.woff': 'font/woff', '.woff2': 'font/woff2', '.otf': 'font/otf', '.gz': 'application/octet-stream',
-  '.txt': 'text/plain; charset=utf-8',
-};
-
 /** True only when page images really exist, so the app shows the page button's feature only then. */
 function pageImagesExist() {
   try {
@@ -375,23 +269,42 @@ function pageImagesExist() {
   }
 }
 
-async function readFile(file, fallbackType) {
+let win;
+let secondInstancePendingFocus = false;
+
+function focusMainWindow() {
+  if (!win || win.isDestroyed()) {
+    secondInstancePendingFocus = true;
+    return;
+  }
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
+}
+
+// Register before app.whenReady so a second launch during startup is not lost.
+app.on('second-instance', focusMainWindow);
+
+function isTrustedRenderer(event) {
+  if (!win || win.isDestroyed()) return false;
+
+  const frame = event.senderFrame;
+  if (
+    event.sender !== win.webContents ||
+    !frame ||
+    frame !== win.webContents.mainFrame
+  ) {
+    return false;
+  }
+
   try {
-    const body = await fs.promises.readFile(file);
-    return new Response(body, { headers: { 'content-type': MIME[path.extname(file).toLowerCase()] || fallbackType } });
+    return isInternalAppUrl(frame.url);
   } catch {
-    return new Response('not found', { status: 404 });
+    return false;
   }
 }
 
-let win;
-
 function configureApplicationMenu() {
-  if (process.platform !== 'darwin') {
-    Menu.setApplicationMenu(null);
-    return;
-  }
-
   // Keep the standard macOS application menu and keyboard commands available.
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {
@@ -454,15 +367,19 @@ function createWindow() {
     minHeight: 400,
     backgroundColor: '#f8f6f1',
     title: 'القرآن الكريم',
-    ...(process.platform === 'win32' ? { icon: path.join(ROOT, 'icons', 'icon-512.png') } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
       spellcheck: false,
     },
   });
   win.loadURL('app://quran/index.html');
+  if (secondInstancePendingFocus) {
+    secondInstancePendingFocus = false;
+    focusMainWindow();
+  }
   win.on('closed', () => { win = null; });
 
   // Electron has no right-click menu of its own: give text fields Cut / Copy / Paste.
@@ -488,16 +405,15 @@ function createWindow() {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('app:')) {
+    if (!isInternalAppUrl(url)) {
       event.preventDefault();
       openExternalHttp(url);
     }
   });
 
-  // Ctrl on Windows/Linux and Command on macOS: zoom the whole app.
+  // Command on macOS: zoom the whole app.
   win.webContents.on('before-input-event', (_event, input) => {
-    const modifierPressed = process.platform === 'darwin' ? input.meta : input.control;
-    if (input.type !== 'keyDown' || !modifierPressed || input.shift) return;
+    if (input.type !== 'keyDown' || !input.meta || input.shift) return;
     const wc = win.webContents;
     if (input.key === '=' || input.key === '+') wc.setZoomLevel(wc.getZoomLevel() + 0.5);
     else if (input.key === '-') wc.setZoomLevel(wc.getZoomLevel() - 0.5);
@@ -506,12 +422,42 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Deny every browser/device permission by default. The only exception is the
+  // clipboard write required by the trusted, top-level app://quran renderer.
+  const appSession = session.defaultSession;
+  appSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    callback(allowPermissionRequest({
+      webContents,
+      mainWebContents: win?.webContents,
+      permission,
+      details,
+    }));
+  });
+  appSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) =>
+    allowPermissionCheck({
+      webContents,
+      mainWebContents: win?.webContents,
+      permission,
+      requestingOrigin,
+      details,
+    })
+  );
+  appSession.setDevicePermissionHandler(() => false);
+
   ipcMain.on('pages:available', (event) => {
+    if (!isTrustedRenderer(event)) {
+      event.returnValue = false;
+      return;
+    }
     event.returnValue = pageImagesExist();
   });
 
-  ipcMain.handle('footnote:insert', async (_event, payload) => {
-    if (!payload || typeof payload !== 'object') {
+  ipcMain.handle('footnote:insert', async (event, payload) => {
+    if (!isTrustedRenderer(event)) {
+      return { ok: false, message: 'درخواست نامعتبر است' };
+    }
+
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       return { ok: false, message: 'اطلاعات درج پاورقی معتبر نیست' };
     }
     const target = payload.target;
@@ -524,44 +470,16 @@ app.whenReady().then(() => {
     return insertNativeFootnote(target, { text, reference, language });
   });
 
+  protocol.handle('app', createAppProtocolHandler({ root: ROOT }));
 
-  protocol.handle('app', (request) => {
-    let pathname;
-    try {
-      pathname = decodeURIComponent(new URL(request.url).pathname);
-    } catch {
-      return new Response('bad request', { status: 400 });
-    }
-    if (pathname === '/') pathname = '/index.html';
-    const relativePath = pathname.replace(/^\/+/, '');
-    const file = path.resolve(ROOT, relativePath);
-    const fromRoot = path.relative(ROOT, file);
-    if (fromRoot === '..' || fromRoot.startsWith(`..${path.sep}`) || path.isAbsolute(fromRoot)) {
-      return new Response('forbidden', { status: 403 });
-    }
-    return readFile(file, 'application/octet-stream');
-  });
-
-  // qpage://pages/<n>  -> <n>.webp      qpage://pages/boxes.json -> where the ayahs are on the pages
-  protocol.handle('qpage', (request) => {
-    const name = path.basename(new URL(request.url).pathname);
-    if (name === 'boxes.json') return readFile(path.join(PAGES_DIR, 'boxes.json'), 'application/json');
-    const page = Number.parseInt(name, 10);
-    if (!(page >= 1 && page <= 604)) return new Response('not found', { status: 404 });
-    return readFile(path.join(PAGES_DIR, `${page}.webp`), 'image/webp');
-  });
+  // qpage://pages/<n> serves one of the 604 page images; boxes.json supplies highlight rectangles.
+  protocol.handle('qpage', createPageProtocolHandler({ pagesDir: PAGES_DIR }));
 
   createWindow();
 });
 
-app.on('second-instance', () => {
-  if (!win) return;
-  if (win.isMinimized()) win.restore();
-  win.focus();
-});
 app.on('window-all-closed', () => {
   // macOS apps normally remain active after their last window is closed.
-  if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('activate', () => {

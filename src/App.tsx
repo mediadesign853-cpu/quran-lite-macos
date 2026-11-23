@@ -5,6 +5,7 @@ import Reader from '@/components/Reader';
 import SettingsPanel from '@/components/SettingsPanel';
 import BookmarksPanel from '@/components/BookmarksPanel';
 import PageViewer from '@/components/PageViewer';
+import UpdatePage from '@/components/UpdatePage';
 import type { PageTarget } from '@/lib/pageImages';
 import type { SurahMeta, SurahEdition, AppSettings } from '@/types/quran';
 import {
@@ -12,15 +13,17 @@ import {
   fetchSurah,
   loadSettings,
   saveSettings,
-  DEFAULT_SETTINGS,
 } from '@/lib/quranData';
 import { recordAyahSearch, purgeLegacyStorage } from '@/lib/viewStats';
 import { addHistory } from '@/lib/history';
 import { getLastReadPosition, saveLastReadPosition } from '@/lib/lastRead';
+import { useCopyStatus } from '@/app/hooks/useCopyStatus';
+import { useServiceWorkerUpdate } from '@/app/hooks/useServiceWorkerUpdate';
 
 export default function App() {
   const [surahs, setSurahs] = useState<SurahMeta[]>([]);
   const [currentSurah, setCurrentSurah] = useState<number | null>(null);
+  const [loadedSurahNumber, setLoadedSurahNumber] = useState<number | null>(null);
   const [surahData, setSurahData] = useState<SurahEdition[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,20 +31,19 @@ export default function App() {
   const [listError, setListError] = useState(false);
   const [listRetry, setListRetry] = useState(0);
   const [surahRetry, setSurahRetry] = useState(0);
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [targetAyah, setTargetAyah] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewPage, setViewPage] = useState<PageTarget | null>(null);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [copyStatus, setCopyStatus] = useState<{ message: string; success: boolean } | null>(null);
+  const copyStatus = useCopyStatus();
+  const { updateAvailable, applyUpdate } = useServiceWorkerUpdate();
   const pendingTargetRef = useRef<number | null>(null);
-
+  const [dismissedUpdate, setDismissedUpdate] = useState(false);
   useEffect(() => {
     purgeLegacyStorage();
-    setSettings(loadSettings());
   }, []);
 
   useEffect(() => {
@@ -53,8 +55,6 @@ export default function App() {
   // Load the surah catalogue independently so a failure can be retried without a page refresh.
   useEffect(() => {
     let active = true;
-    setListLoading(true);
-    setListError(false);
     fetchSurahList()
       .then((list) => {
         if (!active) return;
@@ -85,19 +85,14 @@ export default function App() {
 
   // Ignore stale requests: fast navigation must never let an older response replace the selected surah.
   useEffect(() => {
-    if (currentSurah === null) {
-      setLoading(false);
-      return;
-    }
+    if (currentSurah === null) return;
     let active = true;
-    setLoading(true);
-    setError(null);
-    setSurahData(null);
-    setTargetAyah(null);
     fetchSurah(currentSurah)
       .then((data) => {
         if (!active) return;
         setSurahData(data);
+        setLoadedSurahNumber(currentSurah);
+        setError(null);
         setLoading(false);
         if (pendingTargetRef.current !== null) {
           const ayah = pendingTargetRef.current;
@@ -120,10 +115,15 @@ export default function App() {
 
   const handleSelectSurah = useCallback((n: number) => {
     pendingTargetRef.current = null;
-    setCurrentSurah(n);
+    if (n !== currentSurah) {
+      setLoading(n !== loadedSurahNumber);
+      setError(null);
+      setTargetAyah(null);
+      setCurrentSurah(n);
+    }
     setSidebarOpen(false);
     setSearchQuery('');
-  }, []);
+  }, [currentSurah, loadedSurahNumber]);
 
   const handleNavigateSurah = useCallback((surahNumber: number, ayahNumber?: number, query?: string, record = true) => {
     if (query) setSearchQuery(query);
@@ -131,16 +131,33 @@ export default function App() {
       recordAyahSearch(surahNumber, ayahNumber);
       addHistory(surahNumber, ayahNumber, query);
     }
-    if (surahNumber !== currentSurah) {
-      pendingTargetRef.current = ayahNumber ?? null;
-      setCurrentSurah(surahNumber);
-    } else if (ayahNumber !== undefined) {
+    if (surahNumber !== loadedSurahNumber) {
+      // A request for this destination may already be in flight. Update its
+      // pending target instead of trying to scroll the still-visible old surah.
+      setLoading(true);
+      setError(null);
       setTargetAyah(null);
-      window.setTimeout(() => setTargetAyah(ayahNumber), 50);
+      pendingTargetRef.current = ayahNumber ?? null;
+      if (surahNumber !== currentSurah) setCurrentSurah(surahNumber);
+    } else {
+      // Navigating back to the already displayed surah cancels any pending
+      // destination and can use its retained data immediately.
+      pendingTargetRef.current = null;
+      if (currentSurah !== surahNumber) {
+        setCurrentSurah(surahNumber);
+        setLoading(false);
+        setError(null);
+      }
+      if (ayahNumber !== undefined) {
+        setTargetAyah(null);
+        window.setTimeout(() => setTargetAyah(ayahNumber), 50);
+      }
     }
-  }, [currentSurah]);
+  }, [currentSurah, loadedSurahNumber]);
 
   const handleRetrySurah = useCallback(() => {
+    setLoading(true);
+    setError(null);
     setSurahRetry((value) => value + 1);
   }, []);
 
@@ -162,58 +179,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Show the result of native footnote insertion or its clipboard fallback.
-  useEffect(() => {
-    let timeout: number | undefined;
-    const onCopyStatus = (event: Event) => {
-      const detail = (event as CustomEvent<{ message: string; success: boolean }>).detail;
-      if (!detail?.message) return;
-      setCopyStatus(detail);
-      if (timeout !== undefined) window.clearTimeout(timeout);
-      timeout = window.setTimeout(() => setCopyStatus(null), detail.success ? 3500 : 10000);
-    };
-    window.addEventListener('quran:copy-status', onCopyStatus);
-    return () => {
-      window.removeEventListener('quran:copy-status', onCopyStatus);
-      if (timeout !== undefined) window.clearTimeout(timeout);
-    };
-  }, []);
-
-  useEffect(() => {
-    const onUpdateAvailable = () => setUpdateAvailable(true);
-    const hadController = 'serviceWorker' in navigator && Boolean(navigator.serviceWorker.controller);
-    let firstControllerChange = !hadController;
-    const onControllerChange = () => {
-      // Skip only the initial first-install takeover; every later worker takeover reloads
-      // this tab, even if its own update notification was delayed or missed.
-      if (firstControllerChange) {
-        firstControllerChange = false;
-        return;
-      }
-      window.location.reload();
-    };
-    window.addEventListener('quran:update-available', onUpdateAvailable);
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-      void navigator.serviceWorker.getRegistration().then((registration) => {
-        if (registration?.waiting && navigator.serviceWorker.controller) onUpdateAvailable();
-      }).catch(() => undefined);
-    }
-    return () => {
-      window.removeEventListener('quran:update-available', onUpdateAvailable);
-      if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-    };
-  }, []);
-
-  const applyUpdate = useCallback(async () => {
-    const registration = await navigator.serviceWorker?.getRegistration();
-    if (!registration) return;
-    if (!registration.waiting) await registration.update().catch(() => undefined);
-    if (registration.waiting) {
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-    }
-  }, []);
-
   const handleSettingsChange = useCallback((next: AppSettings) => {
     setSettings(next);
     saveSettings(next);
@@ -226,26 +191,129 @@ export default function App() {
     saveSettings(next);
   }, [settings]);
 
+  // Global application shortcuts. They stay inactive while typing in an editable
+  // control or while the Mushaf image / update overlay is open.
+  useEffect(() => {
+    const handleGlobalShortcuts = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || event.key === 'Escape') return;
+
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const command = event.ctrlKey || event.metaKey;
+      const isSearchShortcut = command && !event.altKey && !event.shiftKey && event.code === 'KeyF';
+      const isSearchInput = Boolean(target?.hasAttribute('data-quran-search'));
+      const isEditable = Boolean(target && (
+        target.matches('input, textarea, select, [contenteditable="true"]') ||
+        target.isContentEditable
+      ));
+
+      // Do not hijack typing or controls. Ctrl/Cmd+F alone is allowed in the
+      // search input itself so the current query can be selected again.
+      if (target?.closest('[role="dialog"]')) return;
+      if (isEditable && !(isSearchShortcut && isSearchInput)) return;
+
+      if (viewPage !== null || (updateAvailable && !dismissedUpdate)) return;
+
+      const plainAlt = event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+
+      // Ctrl/Cmd+F: focus the Quran search box directly.
+      if (isSearchShortcut) {
+        event.preventDefault();
+        setSidebarOpen(false);
+        setBookmarksOpen(false);
+        setSettingsOpen(false);
+        window.dispatchEvent(new Event('quran:focus-search'));
+        return;
+      }
+
+      // Alt+S: open/close the surah list.
+      if (plainAlt && event.code === 'KeyS') {
+        event.preventDefault();
+        setBookmarksOpen(false);
+        setSettingsOpen(false);
+        setSidebarOpen((open) => !open);
+        return;
+      }
+
+      // Alt+B: open/close saved bookmarks.
+      if (plainAlt && event.code === 'KeyB') {
+        event.preventDefault();
+        setSidebarOpen(false);
+        setSettingsOpen(false);
+        setBookmarksOpen((open) => !open);
+        return;
+      }
+
+      // Ctrl/Cmd+Comma: open/close settings.
+      if (command && !event.altKey && !event.shiftKey && event.code === 'Comma') {
+        event.preventDefault();
+        setSidebarOpen(false);
+        setBookmarksOpen(false);
+        setSettingsOpen((open) => !open);
+        return;
+      }
+
+      // Alt+T: switch between light and dark appearance.
+      if (plainAlt && event.code === 'KeyT') {
+        event.preventDefault();
+        handleToggleTheme();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalShortcuts);
+    return () => window.removeEventListener('keydown', handleGlobalShortcuts);
+  }, [
+    viewPage, updateAvailable, dismissedUpdate, handleToggleTheme,
+  ]);
+
+  // Keep the metadata paired with the data currently on screen while a different
+  // surah is loading. The old reader remains usable until the new data is ready.
+  const displayedSurahNumber = loadedSurahNumber ?? currentSurah;
+  const surahMeta = displayedSurahNumber
+    ? surahs.find((surah) => surah.number === displayedSurahNumber) ?? null
+    : null;
+
   const handlePrev = useCallback(() => {
+    const base = currentSurah ?? displayedSurahNumber;
     pendingTargetRef.current = null;
-    if (currentSurah && currentSurah > 1) setCurrentSurah(currentSurah - 1);
+    if (base && base > 1) {
+      setLoading(true);
+      setError(null);
+      setTargetAyah(null);
+      setCurrentSurah(base - 1);
+    }
     setSearchQuery('');
-  }, [currentSurah]);
+  }, [currentSurah, displayedSurahNumber]);
 
   const handleNext = useCallback(() => {
+    const base = currentSurah ?? displayedSurahNumber;
     pendingTargetRef.current = null;
-    if (currentSurah && currentSurah < 114) setCurrentSurah(currentSurah + 1);
+    if (base && base < 114) {
+      setLoading(true);
+      setError(null);
+      setTargetAyah(null);
+      setCurrentSurah(base + 1);
+    }
     setSearchQuery('');
-  }, [currentSurah]);
+  }, [currentSurah, displayedSurahNumber]);
 
-  const surahMeta = currentSurah ? surahs.find((surah) => surah.number === currentSurah) ?? null : null;
+
+  // Preload the adjacent surahs after the current one has rendered. fetchSurah
+  // deduplicates requests and stores the resulting promises in its existing cache.
+  useEffect(() => {
+    if (currentSurah === null || loadedSurahNumber !== currentSurah) return;
+    const timer = window.setTimeout(() => {
+      if (currentSurah > 1) void fetchSurah(currentSurah - 1).catch(() => undefined);
+      if (currentSurah < 114) void fetchSurah(currentSurah + 1).catch(() => undefined);
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [currentSurah, loadedSurahNumber]);
 
   if (listLoading) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+      <div className="min-h-screen bg-(--bg-primary) flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--accent)]/10 flex items-center justify-center">
-            <BookOpen className="w-8 h-8 text-[var(--accent)]" />
+          <div className="w-16 h-16 rounded-2xl bg-(--accent)/10 flex items-center justify-center">
+            <BookOpen className="w-8 h-8 text-(--accent)" />
           </div>
           <div className="flex items-center gap-2" aria-label="Loading">
             <span className="loading-dot" />
@@ -259,13 +327,17 @@ export default function App() {
 
   if (listError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)] p-6" role="alert">
+      <div className="min-h-screen flex items-center justify-center bg-(--bg-primary) p-6" role="alert">
         <div className="max-w-md text-center space-y-3">
-          <BookOpen className="w-10 h-10 text-[var(--accent)] mx-auto" />
-          <p className="text-[var(--text-primary)]">
+          <BookOpen className="w-10 h-10 text-(--accent) mx-auto" />
+          <p className="text-(--text-primary)">
             {settings.language === 'fa' ? 'فهرست سوره‌ها بارگذاری نشد.' : 'تعذّر تحميل قائمة السور.'}
           </p>
-          <button onClick={() => setListRetry((value) => value + 1)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] text-white">
+          <button onClick={() => {
+            setListLoading(true);
+            setListError(false);
+            setListRetry((value) => value + 1);
+          }} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-(--accent) text-white">
             <RefreshCw className="w-4 h-4" />
             {settings.language === 'fa' ? 'تلاش دوباره' : 'إعادة المحاولة'}
           </button>
@@ -275,7 +347,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[var(--bg-primary)]">
+    <div className="h-screen flex overflow-hidden bg-(--bg-primary)">
       <Sidebar
         surahs={surahs}
         currentSurah={currentSurah}
@@ -285,7 +357,9 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
       />
 
+      {/* Reset reader-local selection state when the newly loaded surah replaces the previous one. */}
       <Reader
+        key={loadedSurahNumber ?? 'reader'}
         surahMeta={surahMeta}
         surahData={surahData}
         loading={loading}
@@ -303,8 +377,9 @@ export default function App() {
         onShowPage={setViewPage}
         onToggleTheme={handleToggleTheme}
         onNavigateSurah={handleNavigateSurah}
-        hasPrev={currentSurah !== null && currentSurah > 1}
-        hasNext={currentSurah !== null && currentSurah < 114}
+        hasPrev={displayedSurahNumber !== null && displayedSurahNumber > 1}
+        hasNext={displayedSurahNumber !== null && displayedSurahNumber < 114}
+        hasOpenOverlay={sidebarOpen || settingsOpen || bookmarksOpen || viewPage !== null || (updateAvailable && !dismissedUpdate)}
       />
 
       <SettingsPanel settings={settings} onChange={handleSettingsChange} isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
@@ -324,8 +399,8 @@ export default function App() {
 
       {copyStatus && (
         <div
-          className={`fixed  bottom-[86px] right-6 z-[110] w-fit max-w-[calc(100vw-2rem)] max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-words rounded-xl border bg-[var(--bg-card)] px-4 py-3 text-sm leading-6 shadow-xl
-            ${copyStatus.success ? 'border-[var(--accent)]' : 'border-amber-400'}`}
+          className={`fixed  bottom-21.5 right-6 z-110 w-fit max-w-[calc(100vw-2rem)] max-h-[40vh] overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-xl border border-(--border) bg-(--bg-card) px-4 py-3 text-sm leading-6 shadow-xl
+            ${copyStatus.success ? 'border-(--accent)' : 'border-amber-400'}`}
           dir="auto"
           role={copyStatus.success ? 'status' : 'alert'}
           aria-live={copyStatus.success ? 'polite' : 'assertive'}
@@ -334,15 +409,15 @@ export default function App() {
         </div>
       )}
 
-      {updateAvailable && (
-        <div className="fixed bottom-4 left-4 z-[100] flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 shadow-xl" role="status">
-          <span className="text-sm text-[var(--text-primary)]">
-            {settings.language === 'fa' ? 'نسخهٔ تازه آماده است.' : 'يتوفر تحديث جديد.'}
-          </span>
-          <button onClick={() => void applyUpdate()} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm text-white">
-            {settings.language === 'fa' ? 'به‌روزرسانی' : 'تحديث'}
-          </button>
-        </div>
+      {updateAvailable && !dismissedUpdate && (
+        <UpdatePage
+          version=""
+          onUpdate={() => {
+            void applyUpdate();
+            setDismissedUpdate(true);
+          }}
+          onDismiss={() => setDismissedUpdate(true)}
+        />
       )}
     </div>
   );

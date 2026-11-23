@@ -106,6 +106,43 @@ export function toggleBookmark(entry: Pick<BookmarkEntry, 'surahNumber' | 'ayahN
   return !existing;
 }
 
+/** Toggle a group of ayahs with one storage write and one notification. */
+export function toggleBookmarks(
+  entries: ReadonlyArray<Pick<BookmarkEntry, 'surahNumber' | 'ayahNumber'>>
+): void {
+  if (entries.length === 0) return;
+
+  const next = new Map<string, BookmarkEntry>(
+    load().map((bookmark): [string, BookmarkEntry] => [bookmark.key, bookmark])
+  );
+  const processed = new Set<string>();
+  const createdAt = Date.now();
+  let changed = false;
+
+  for (const entry of entries) {
+    if (
+      !Number.isInteger(entry.surahNumber) || entry.surahNumber < 1 || entry.surahNumber > 114 ||
+      !Number.isInteger(entry.ayahNumber) || entry.ayahNumber < 1
+    ) continue;
+
+    const key = `${entry.surahNumber}:${entry.ayahNumber}`;
+    if (processed.has(key)) continue;
+    processed.add(key);
+
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.set(key, { ...entry, key, createdAt });
+    }
+    changed = true;
+  }
+
+  if (!changed) return;
+  cache = [...next.values()];
+  persist();
+  notify();
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key === BOOKMARKS_KEY || event.key === null) {

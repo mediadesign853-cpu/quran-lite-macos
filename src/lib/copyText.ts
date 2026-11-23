@@ -1,4 +1,4 @@
-import type { CopyNumberStyle, CopyReferenceStyle, CopyAyahBracketStyle, Language } from '@/types/quran';
+import type { CopyNumberStyle, CopyReferenceStyle, CopyAyahBracketStyle } from '@/types/quran';
 
 export interface AyahCopyPayload {
   /** Arabic text only, including configured verse numbers and brackets. */
@@ -23,7 +23,7 @@ export function wrapAyahText(text: string, style: CopyAyahBracketStyle = 'none')
   if (style === 'none' || !text) return text;
   const [open, close] = style === 'curly'
     ? ['\u007B', '\u007D'] // LEFT / RIGHT CURLY BRACKET
-    : ['\uFD3E', '\uFD3F']; // ORNATE LEFT / RIGHT PARENTHESIS
+    : ['\uFD3F', '\uFD3E']; // ORNATE LEFT / RIGHT PARENTHESIS
   return `${open}${text}${close}`;
 }
 
@@ -33,6 +33,7 @@ export function wrapAyahText(text: string, style: CopyAyahBracketStyle = 'none')
  */
 export function cleanSurahName(name: string): string {
   return name
+    .normalize('NFC') // Preserve composed letters such as آ before removing combining Quranic marks.
     .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u08D3-\u08FF]/gu, '') //Quran Marks 
     .replace(/[\u0640]/gu, '')
     .replace(/\u0671/gu, '\u0627') // alif wasla -> alif
@@ -131,6 +132,8 @@ function getFootnoteMessages(language: string) {
       webUnavailable: 'در نسخهٔ وب پاورقی واقعی ایجاد نمی‌شود؛ متن آیه و نشانی آن کپی شد. برای درج پاورقی از نسخهٔ دسکتاپ استفاده کنید',
       wordSuccess: 'آیه و پاورقی در Word درج شدند',
       indesignSuccess: 'آیه و پاورقی در انديزاين درج شدند',
+      wordExistingFootnoteSuccess: 'متن آیه و مرجع آن در هامش موجود Word درج شدند',
+      indesignExistingFootnoteSuccess: 'متن آیه و مرجع آن در هامش موجود InDesign درج شدند',
       insertFailed: 'درج پاورقی ناموفق بود',
       fallbackCopied: 'آیه و نشانی آن به‌صورت متن عادی کپی شدند',
       connectionFailed: 'اتصال به نرم‌افزار برقرار نشد',
@@ -139,9 +142,11 @@ function getFootnoteMessages(language: string) {
   }
 
   return {
-    webUnavailable: 'لا يمكن إنشاء حاشية فعلية في إصدار الويب؛ تم نسخ الآية ومرجعها.',
+    webUnavailable: 'لا يمكن إنشاء هامش حقيقية في إصدار الويب؛ تم نسخ الآية ومرجعها. استخدم إصدار Windows لإدراج الهامش',
     wordSuccess: 'تم إدراج الآية والهامش في Word',
     indesignSuccess: 'تم إدراج الآية والهامش في انديزاين',
+    wordExistingFootnoteSuccess: 'تم إدراج نص الآية ومرجعها داخل الهامش الموجود في Word',
+    indesignExistingFootnoteSuccess: 'تم إدراج نص الآية ومرجعها داخل الهامش الموجود في InDesign',
     insertFailed: 'فشل إدراج الهامش',
     fallbackCopied: '(تم النسخ كنص عادي)',
     connectionFailed: 'تعذّر الاتصال بالتطبيق',
@@ -150,13 +155,13 @@ function getFootnoteMessages(language: string) {
 }
 
 /**
- * Performs the configured copy operation. Native Word/InDesign footnotes are inserted
- * by the Electron main process through the target application's own automation API.
+ * Performs the configured copy operation. New Word/InDesign footnotes are inserted
+ * through the target application's automation API; existing footnotes receive inline text.
  */
 export async function copyAyahPayload(
   payload: AyahCopyPayload,
   style: CopyReferenceStyle,
-  language: Language = document.documentElement.lang === 'fa' ? 'fa' : 'ar'
+  language: string = document.documentElement.lang || 'ar'
 ): Promise<CopyActionResult> {
   if (style === 'inline' || style === 'none') {
     return {
@@ -184,13 +189,15 @@ export async function copyAyahPayload(
       target,
       text: payload.text,
       reference: payload.reference,
-      language,
+      language: 'ar'
+
     });
     if (result.ok) {
-      reportFootnoteStatus(
-        target === 'word' ? messages.wordSuccess : messages.indesignSuccess,
-        true
-      );
+      const insertedIntoExistingFootnote = result.code === 'existing-footnote-text';
+      const successMessage = target === 'word'
+        ? (insertedIntoExistingFootnote ? messages.wordExistingFootnoteSuccess : messages.wordSuccess)
+        : (insertedIntoExistingFootnote ? messages.indesignExistingFootnoteSuccess : messages.indesignSuccess);
+      reportFootnoteStatus(successMessage, true);
       return { ok: true, insertedAsFootnote: true };
     }
 
@@ -219,7 +226,8 @@ export function selectionCopyPayload(
   root: HTMLElement,
   style: CopyNumberStyle,
   surahName: string,
-  bracketStyle: CopyAyahBracketStyle = 'none'
+  bracketStyle: CopyAyahBracketStyle = 'none',
+  omitLastAyahNumber: boolean = true
 ): AyahCopyPayload | null {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
@@ -229,20 +237,14 @@ export function selectionCopyPayload(
   const nodes = Array.from(root.querySelectorAll<HTMLElement>('[data-arabic-text]')).filter((n) => range.intersectsNode(n));
   if (nodes.length === 0) return null;
 
-  const parts: string[] = [];
-  const selectedAyahNumbers = new Set<number>();
-
-  for (const node of nodes) {
+  const selectedParts = nodes.map((node) => {
     const full = document.createRange();
     full.selectNodeContents(node);
     const part = range.cloneRange();
     if (range.compareBoundaryPoints(Range.START_TO_START, full) < 0) part.setStart(full.startContainer, full.startOffset);
     if (range.compareBoundaryPoints(Range.END_TO_END, full) > 0) part.setEnd(full.endContainer, full.endOffset);
     const text = part.toString().replace(/\s+/g, ' ').trim();
-    if (!text) continue;
-
-    const ayahNumber = Number(node.dataset.ayah);
-    if (Number.isInteger(ayahNumber) && ayahNumber > 0) selectedAyahNumbers.add(ayahNumber);
+    if (!text) return null;
 
     const before = document.createRange();
     before.setStart(full.startContainer, full.startOffset);
@@ -250,14 +252,37 @@ export function selectionCopyPayload(
     const after = document.createRange();
     after.setStart(part.endContainer, part.endOffset);
     after.setEnd(full.endContainer, full.endOffset);
-    const reachesEnd = after.toString().trim() === '';
-    const startsAtBeginning = before.toString().trim() === '';
-    const number = node.dataset.ayah;
-    const withNumber = reachesEnd && (nodes.length > 1 || startsAtBeginning) && number;
-    parts.push(text + (withNumber ? numberSuffix(number, style) : ''));
-  }
 
-  if (parts.length === 0) return null;
+    return {
+      text,
+      reachesEnd: after.toString().trim() === '',
+      startsAtBeginning: before.toString().trim() === '',
+      number: node.dataset.ayah,
+    };
+  }).filter((part): part is NonNullable<typeof part> => part !== null);
+
+  if (selectedParts.length === 0) return null;
+
+  const parts: string[] = [];
+  const selectedAyahNumbers = new Set<number>();
+  const lastSelectedPartIndex = selectedParts.length - 1;
+
+  selectedParts.forEach((selectedPart, index) => {
+    const ayahNumber = Number(selectedPart.number);
+    if (Number.isInteger(ayahNumber) && ayahNumber > 0) selectedAyahNumbers.add(ayahNumber);
+
+    const shouldAppendNumber =
+      selectedPart.reachesEnd &&
+      (nodes.length > 1 || selectedPart.startsAtBeginning) &&
+      Boolean(selectedPart.number) &&
+      !(omitLastAyahNumber && index === lastSelectedPartIndex);
+
+    parts.push(
+      selectedPart.text +
+      (shouldAppendNumber ? numberSuffix(selectedPart.number!, style) : '')
+    );
+  });
+
   return createAyahCopyPayload(parts.join(' '), surahName, [...selectedAyahNumbers], bracketStyle);
 }
 
@@ -267,8 +292,9 @@ export function selectionCopyText(
   style: CopyNumberStyle,
   surahName: string,
   referenceStyle: CopyReferenceStyle = 'inline',
-  bracketStyle: CopyAyahBracketStyle = 'none'
+  bracketStyle: CopyAyahBracketStyle = 'none',
+  omitLastAyahNumber: boolean = true
 ): string | null {
-  const payload = selectionCopyPayload(root, style, surahName, bracketStyle);
+  const payload = selectionCopyPayload(root, style, surahName, bracketStyle, omitLastAyahNumber);
   return payload ? formatCopyFallback(payload, referenceStyle) : null;
 }

@@ -2,7 +2,6 @@ import { useRef, useEffect } from 'react';
 import {
   Settings,
   Type,
-
   Languages,
   Check,
   Plus,
@@ -91,8 +90,6 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
       },
     ];
 
-
-
   return (
     <>
       {isOpen && (
@@ -109,18 +106,19 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
         aria-hidden={!isOpen}
         aria-label={fa ? 'تنظیمات' : 'الإعدادات'}
         tabIndex={-1}
-        className={`fixed top-0 left-0 h-full w-80 bg-[var(--bg-card)] shadow-2xl z-50 flex flex-col transition-transform duration-300 overflow-y-auto ${isOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+        className={`fixed top-0 left-0 h-full w-80 bg-(--bg-card) shadow-2xl z-50 flex flex-col transition-transform duration-300 overflow-y-auto
+           ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
+        }
       >
-        <div className="sticky top-0 bg-[var(--bg-card)] border-b border-[var(--border)] px-4 py-3 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-(--bg-card) border-b border-(--border) px-4 py-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-[var(--accent)]" />
+            <Settings className="w-5 h-5 text-(--accent)" />
             <h2 className="text-sm font-semibold">
               {settings.language === 'fa' ? 'تنظیمات' : 'الإعدادات'}
             </h2>
           </div>
-          <button ref={closeButtonRef} onClick={onClose} aria-label={fa ? 'بستن تنظیمات' : 'إغلاق الإعدادات'} className="p-1.5 rounded-lg hover:bg-[var(--border-light)] transition-smooth">
-            <X className="w-5 h-5 text-[var(--text-secondary)]" />
+          <button ref={closeButtonRef} onClick={onClose} aria-label={fa ? 'بستن تنظیمات' : 'إغلاق الإعدادات'} className="p-1.5 rounded-lg hover:bg-(--border-light) transition-smooth">
+            <X className="w-5 h-5 text-(--text-secondary)" />
           </button>
         </div>
 
@@ -167,17 +165,17 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
             <div className="flex items-center gap-3">
               <button
                 onClick={() => update({ fontSize: Math.max(16, settings.fontSize - 2) })}
-                className="w-10 h-10 rounded-lg border border-[var(--border)] flex items-center justify-center hover:bg-[var(--border-light)] transition-smooth"
+                className="w-10 h-10 rounded-lg border border-var(--border) flex items-center justify-center hover:bg-(--border-light) transition-smooth"
               >
                 <Minus className="w-4 h-4" />
               </button>
               <div className="flex-1 text-center">
-                <span className="text-2xl font-bold text-[var(--accent)]">{settings.fontSize}</span>
-                <span className="text-xs text-[var(--text-secondary)] mr-1">px</span>
+                <span className="text-2xl font-bold text-(--accent)">{settings.fontSize}</span>
+                <span className="text-xs text-(--text-secondary) mr-1">px</span>
               </div>
               <button
                 onClick={() => update({ fontSize: Math.min(56, settings.fontSize + 2) })}
-                className="w-10 h-10 rounded-lg border border-[var(--border)] flex items-center justify-center hover:bg-[var(--border-light)] transition-smooth"
+                className="w-10 h-10 rounded-lg border border-(--border) flex items-center justify-center hover:bg-(--border-light) transition-smooth"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -190,14 +188,14 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
                 step={2}
                 value={settings.fontSize}
                 onChange={(e) => update({ fontSize: Number(e.target.value) })}
-                className="w-full accent-[var(--accent)]"
+                className="w-full accent-(--accent)"
               />
             </div>
           </Section>
 
           {/* Brackets around copied ayahs */}
           <Section title={fa ? 'پرانتز' : 'الأقواس'} icon={Copy}>
-            <p className="text-xs leading-6 text-[var(--text-secondary)] mb-2">
+            <p className="text-xs leading-6 text-(--text-secondary) mb-2">
               {fa
                 ? 'قرار دادن آیه بین پرانتز قرآنی'
                 : 'وضع الآية بين القوسين'}
@@ -209,8 +207,8 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
                   <label
                     key={option.value}
                     className={`w-full flex items-start gap-3 px-3 py-3 rounded-lg border cursor-pointer transition-smooth ${active
-                      ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                      : 'border-[var(--border)] hover:bg-[var(--bg-secondary)]'
+                      ? 'border-(--accent) bg-(--accent)/5'
+                      : 'border-(--border) hover:bg-(--bg-secondary)'
                       }`}
                   >
                     <input
@@ -219,14 +217,14 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
                       value={option.value}
                       checked={active}
                       onChange={() => update({ copyAyahBracketStyle: option.value })}
-                      className="mt-1 accent-[var(--accent)]"
+                      className="mt-1 accent-(--accent)"
                     />
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm font-medium">
                         {option.label}
                       </span>
                     </span>
-                    {active && <Check className="w-4 h-4 mt-0.5 shrink-0 text-[var(--accent)]" />}
+                    {active && <Check className="w-4 h-4 mt-0.5 shrink-0 text-(--accent)" />}
                   </label>
                 );
               })}
@@ -246,8 +244,8 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
                   <label
                     key={option.value}
                     className={`w-full flex items-start gap-3 px-3 py-3 rounded-lg border cursor-pointer transition-smooth ${active
-                      ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                      : 'border-[var(--border)] hover:bg-[var(--bg-secondary)]'
+                      ? 'border-(--accent) bg-(--accent)/5'
+                      : 'border-(--border) hover:bg-(--bg-secondary)'
                       }`}
                   >
                     <input
@@ -256,12 +254,12 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
                       value={option.value}
                       checked={active}
                       onChange={() => update({ copyReferenceStyle: option.value })}
-                      className="mt-1 accent-[var(--accent)]"
+                      className="mt-1 accent-(--accent)"
                     />
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm font-medium">{option.label}</span>
                     </span>
-                    {active && <Check className="w-4 h-4 mt-0.5 shrink-0 text-[var(--accent)]" />}
+                    {active && <Check className="w-4 h-4 mt-0.5 shrink-0 text-(--accent)" />}
                   </label>
                 );
               })}
@@ -276,25 +274,42 @@ export default function SettingsPanel({ settings, onChange, isOpen, onClose }: S
                   key={c.value}
                   onClick={() => update({ copyNumberStyle: c.value })}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-smooth ${settings.copyNumberStyle === c.value
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                    : 'border-[var(--border)] hover:bg-[var(--bg-secondary)]'
+                    ? 'border-(--accent) bg-(--accent)/5'
+                    : 'border-(--border) hover:bg-(--bg-secondary)'
                     }`}
                 >
                   <span className="text-sm font-medium">{c.label}</span>
-                  {settings.copyNumberStyle === c.value && <Check className="w-4 h-4 text-[var(--accent)]" />}
+                  {settings.copyNumberStyle === c.value && <Check className="w-4 h-4 text-(--accent)" />}
                 </button>
               ))}
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-(--border) px-3 py-3">
+                <div className="min-w-0">
+                  <span className="block text-sm font-medium">
+                    {fa ? 'حذف شمارهٔ آخرین آیه' : 'حذف رقم الآية الأخيرة'}
+                  </span>
+                  <span className="mt-1 block text-xs text-(--text-secondary)">
+                    {fa
+                      ? 'شمارهٔ آیهٔ پایانی درج نمی‌شود'
+                      : 'إظهار رقم الآية الأخيرة'}
+                  </span>
+                </div>
+                <Toggle
+                  active={settings.omitLastAyahNumber}
+                  onClick={() => update({ omitLastAyahNumber: !settings.omitLastAyahNumber })}
+                  label={settings.omitLastAyahNumber ? (fa ? 'فعال' : 'اظهار' ) : (fa ? 'غیرفعال' : 'اخفاء')}
+                />
+              </div>
             </div>
           </Section>
 
           {/* Sources */}
           <div className="flex justify-end
-           text-xs text-[var(--text-secondary)]">
+           text-xs text-(--text-secondary)">
             <a
               href="https://tanzil.net"
               target="_blank"
               rel="noreferrer"
-              className="inline rounded px-1 -mx-1 text-[var(--accent-dark)]
+              className="inline rounded px-1 -mx-1 text-(--accent-dark)
              dark:bg-[color-mix(in_srgb,var(--accent-light)_15%,transparent)]
              bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
             >

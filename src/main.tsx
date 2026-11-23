@@ -19,6 +19,15 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
+// In development, remove a service worker left over from an earlier production build.
+// A stale worker can intercept Vite's HMR client and sw.js, causing invalid WebSocket
+// URLs and placeholder errors in the browser console.
+if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations()
+    .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+    .catch(() => undefined);
+}
+
 // Offline support (see public/sw.js). Only in the production build and only over http(s):
 // the desktop app (app://) reads its files directly and needs no service worker.
 if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {

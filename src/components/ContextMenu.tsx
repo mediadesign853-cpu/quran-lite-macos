@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+﻿import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export interface ContextMenuItem {
   label: string;
@@ -57,7 +57,7 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
       // keeps the text selection while the menu is used
       onMouseDown={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed z-[70] min-w-[200px] py-1 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-2xl text-sm animate-scale-in"
+      className="fixed z-70 min-w-50 py-1 rounded-lg border border-(--border) bg-(--bg-card) text-(--text-primary) shadow-2xl text-sm animate-scale-in"
     >
       {items.map((item) => (
         <button
@@ -67,10 +67,10 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
             item.onSelect();
             onClose();
           }}
-          className="w-full flex items-center justify-between gap-6 px-3 py-2 text-start hover:bg-[var(--bg-secondary)] transition-smooth"
+          className="w-full flex items-center justify-between gap-6 px-3 py-2 text-start hover:bg-(--bg-secondary) transition-smooth"
         >
           <span>{item.label}</span>
-          {item.hint && <span className="text-xs text-[var(--text-secondary)]">{item.hint}</span>}
+          {item.hint && <span className="text-xs text-(--text-secondary)">{item.hint}</span>}
         </button>
       ))}
     </div>

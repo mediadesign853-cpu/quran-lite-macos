@@ -35,7 +35,15 @@ export default function precachePlugin() {
         sw = sw.replace(token, () => value);
       };
       fill("'__PRECACHE_NAME__'", JSON.stringify(`quran-reader-app-${shortHash(appHash)}`));
-      fill('__PRECACHE_URLS__', JSON.stringify(files));
+      // Collapse the dev-only typeof guard into a single literal array in production.
+      const devGuard = /typeof __PRECACHE_URLS__ === 'undefined' \? \[\] : __PRECACHE_URLS__/;
+      if (devGuard.test(sw)) {
+        sw = sw.replace(devGuard, () => JSON.stringify(files));
+      } else {
+        fill('__PRECACHE_URLS__', JSON.stringify(files));
+      }
+      // The eslint declaration is only needed while the raw token exists in public/.
+      sw = sw.replace('/* global __PRECACHE_URLS__ */\n', '');
       writeFileSync(swPath, sw);
       console.log(`precache: ${files.length} application files`);
     },

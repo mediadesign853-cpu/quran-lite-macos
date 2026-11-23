@@ -1,4 +1,4 @@
-// Step 2 of the desktop pipeline:  vite build  ->  prepare electron/dist  ->  electron-builder  ->  NSIS installer
+// Step 2 of the desktop pipeline:  vite build  ->  prepare electron/dist  ->  electron-builder  ->  macOS app package
 // Copies the finished web build (dist/) to electron/dist/, which the desktop shell serves and electron-builder packs.
 // Page images (electron/pages/1.webp ... 604.webp + boxes.json) are optional: without them the build still works
 // and the app simply has no page-image feature.

@@ -1,11 +1,16 @@
-import { useState, useCallback } from 'react';
+import { memo, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { Copy, Check, Bookmark, BookmarkCheck, Eye, FileImage } from 'lucide-react';
 import type { SurahEdition, AppSettings } from '@/types/quran';
 import { getAyahText, getHighlightedSegments } from '@/lib/quranData';
-import { isBookmarked, toggleBookmark, useBookmarksVersion } from '@/lib/bookmarks';
-import { getAyahViewCount, useStatsVersion } from '@/lib/viewStats';
+import { toggleBookmark } from '@/lib/bookmarks';
 import { createAyahCopyPayload, copyAyahPayload } from '@/lib/copyText';
 import type { PageTarget } from '@/lib/pageImages';
+
+const ARABIC_INDIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+
+function toArabicIndicDigits(value: number): string {
+  return String(value).replace(/[0-9]/g, (digit) => ARABIC_INDIC_DIGITS[Number(digit)]);
+}
 
 interface AyahRowProps {
   surahData: SurahEdition[];
@@ -13,21 +18,31 @@ interface AyahRowProps {
   surahNumber: number;
   settings: AppSettings;
   surahName: string;
-  englishName: string;
   isTarget?: boolean;
   searchQuery?: string;
   onShowPage?: (target: PageTarget) => void;
+  selected: boolean;
+  bookmarked: boolean;
+  viewCount: number;
+  onToggleSelect: (ayahNumber: number) => void;
 }
 
-export default function AyahRow({ surahData, ayahIndex, surahNumber, settings, surahName, isTarget, searchQuery, onShowPage }: AyahRowProps) {
+function AyahRow({
+  surahData,
+  ayahIndex,
+  surahNumber,
+  settings,
+  surahName,
+  isTarget,
+  searchQuery,
+  onShowPage,
+  selected,
+  bookmarked,
+  viewCount,
+  onToggleSelect,
+}: AyahRowProps) {
   const [copied, setCopied] = useState(false);
-  useBookmarksVersion();
-  const bookmarked = isBookmarked(surahNumber, ayahIndex + 1);
-  const [selected, setSelected] = useState(false);
-
-  useStatsVersion();
   const ayahNumber = ayahIndex + 1;
-  const viewCount = getAyahViewCount(surahNumber, ayahNumber);
   const pageNumber = surahData[0]?.ayahs[ayahIndex]?.page;
   const arabicText = getAyahText(surahData, ayahIndex);
 
@@ -50,6 +65,17 @@ export default function AyahRow({ surahData, ayahIndex, surahNumber, settings, s
     toggleBookmark({ surahNumber, ayahNumber });
   }, [surahNumber, ayahNumber]);
 
+  const handleRowClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    // Keep native mouse text selection intact. Row selection is only used
+    // when the click did not leave a text range selected.
+    const textSelection = window.getSelection();
+    if (textSelection && !textSelection.isCollapsed && textSelection.toString().trim()) {
+      return;
+    }
+    event.currentTarget.focus({ preventScroll: true });
+    onToggleSelect(ayahNumber);
+  }, [ayahNumber, onToggleSelect]);
+
   function renderArabicText() {
     if (!searchQuery?.trim()) return arabicText;
     const segments = getHighlightedSegments(arabicText, searchQuery);
@@ -62,86 +88,89 @@ export default function AyahRow({ surahData, ayahIndex, surahNumber, settings, s
 
   return (
     <div
-      onClick={() => setSelected(!selected)}
+      role="group"
+      tabIndex={isTarget || ayahNumber === 1 ? 0 : -1}
+      aria-roledescription={settings.language === 'fa' ? 'آیه' : 'الآية'}
+      aria-label={settings.language === 'fa'
+        ? `آیه ${ayahNumber}${selected ? '، انتخاب‌شده' : ''}`
+        : `الآية ${ayahNumber}${selected ? '، محددة' : ''}`}
+      aria-keyshortcuts={`S B${onShowPage && pageNumber ? ' M' : ''} Shift+ArrowUp Shift+ArrowDown Control+Shift+ArrowUp Control+Shift+ArrowDown Control+ArrowLeft Control+ArrowRight Control+Home Control+End`}
+      onClick={handleRowClick}
       data-ayah-row={ayahNumber}
-      className={`group animate-fade-in rounded-xl transition-all duration-300 cursor-pointer ${isTarget
+      data-selected={selected ? 'true' : 'false'}
+      className={`group cursor-pointer rounded-xl transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-(--accent) focus-visible:outline-offset-2 ${isTarget
         ? 'bg-amber-100/60 dark:bg-amber-900/20 ring-2 ring-amber-400/50'
         : selected
-          ? 'bg-[var(--accent)]/8 ring-1 ring-[var(--accent)]/20'
+          ? 'bg-(--accent)/8 ring-1 ring-(--accent)/20'
           : ''
         }`}
     >
-      <div className="flex items-start gap-3 py-4  px-4 sm:px-6 rounded-xl hover:bg-[var(--bg-card)] transition-smooth">
+      <div className="flex items-start gap-3 rounded-xl px-4 py-4 transition-colors duration-200 hover:bg-(--bg-card) sm:px-6">
         {/* Content */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           {/* Arabic text with verse number at the end */}
           <p
-            className="font-quran quran-text text-[var(--text-primary)] mb-2"
+            className="quran-text mb-2 font-quran text-(--text-primary)"
             style={{ fontSize: `${settings.fontSize}px` }}
             dir="rtl"
           >
-            <span
-              data-arabic-text=""
-              className='inline'
-              data-ayah={ayahNumber}
-            >
+            <span data-arabic-text="" className="inline" data-ayah={ayahNumber}>
               {renderArabicText()}
             </span>
             <span
-              className="ayah-number inline whitespace-nowrap mx-1 select-none"
-              style={{
-                fontSize: `${settings.fontSize * 0.5}px`
-              }}>
-              {ayahNumber}
+              className="ayah-number mx-1 inline whitespace-nowrap select-none font-quran"
+              dir="rtl"
+              aria-label={settings.language === 'fa' ? `آیه ${ayahNumber}` : `الآية ${ayahNumber}`}
+              style={{ fontSize: `${settings.fontSize}px` }}
+            >
+              {toArabicIndicDigits(ayahNumber)}
             </span>
           </p>
 
           {/* Search count badge: shown only for ayahs that were searched */}
           {viewCount > 0 && (
-            <div className="flex items-center gap-1 mt-1.5 select-none">
-              <Eye className="w-3 h-3 text-[var(--text-secondary)]" />
-              <span className="text-xs text-[var(--text-secondary)]">
-                {settings.language === 'fa' ? `${viewCount}` : `${viewCount}`}
-              </span>
+            <div className="mt-1.5 flex select-none items-center gap-1">
+              <Eye className="h-3 w-3 text-(--text-secondary)" />
+              <span className="text-xs text-(--text-secondary)">{viewCount}</span>
             </div>
           )}
         </div>
 
         {/* Action buttons */}
-        <div className="flex-shrink-0 flex flex-col gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-smooth">
+        <div className="flex shrink-0 flex-col gap-1 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
           <button
-            onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-            className="p-2 rounded-lg hover:bg-[var(--accent)]/10 transition-smooth tooltip focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+            onClick={(event) => { event.stopPropagation(); handleCopy(); }}
+            className="tooltip rounded-lg p-2 transition-colors duration-200 hover:bg-(--accent)/10 focus-visible:outline-2 focus-visible:outline-(--accent)"
             aria-label={settings.language === 'fa' ? 'کپی آیه' : 'نسخ الآية'}
             data-tooltip={settings.language === 'fa' ? 'کپی' : 'نسخ'}
           >
             {copied ? (
-              <Check className="w-4 h-4 text-[var(--accent)]" />
+              <Check className="h-4 w-4 text-(--accent)" />
             ) : (
-              <Copy className="w-4 h-4 text-[var(--text-secondary)]" />
+              <Copy className="h-4 w-4 text-(--text-secondary)" />
             )}
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleToggleBookmark(); }}
-            className="p-2 rounded-lg hover:bg-[var(--accent)]/10 transition-smooth tooltip focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+            onClick={(event) => { event.stopPropagation(); handleToggleBookmark(); }}
+            className="tooltip rounded-lg p-2 transition-colors duration-200 hover:bg-(--accent)/10  focus-visible:outline-2 focus-visible:outline-(--accent)"
             aria-label={settings.language === 'fa' ? 'نشان‌گذاری آیه' : 'وضع علامة على الآية'}
             aria-pressed={bookmarked}
             data-tooltip={settings.language === 'fa' ? 'نشان' : 'علامة'}
           >
             {bookmarked ? (
-              <BookmarkCheck className="w-4 h-4 text-[var(--accent)]" />
+              <BookmarkCheck className="h-4 w-4 text-(--accent)" />
             ) : (
-              <Bookmark className="w-4 h-4 text-[var(--text-secondary)]" />
+              <Bookmark className="h-4 w-4 text-(--text-secondary)" />
             )}
           </button>
           {onShowPage && pageNumber ? (
             <button
-              onClick={(e) => { e.stopPropagation(); onShowPage({ page: pageNumber, surah: surahNumber, ayah: ayahNumber }); }}
-              className="p-2 rounded-lg hover:bg-[var(--accent)]/10 transition-smooth tooltip focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+              onClick={(event) => { event.stopPropagation(); onShowPage({ page: pageNumber, surah: surahNumber, ayah: ayahNumber }); }}
+              className="tooltip rounded-lg p-2 transition-colors duration-200 hover:bg-(--accent)/10  focus-visible:outline-2 focus-visible:outline-(--accent)"
               aria-label={settings.language === 'fa' ? `نمایش صفحهٔ ${pageNumber}` : `عرض الصفحة ${pageNumber}`}
               data-tooltip={settings.language === 'fa' ? `صفحهٔ مصحف (${pageNumber})` : `صفحة المصحف (${pageNumber})`}
             >
-              <FileImage className="w-4 h-4 text-[var(--text-secondary)]" />
+              <FileImage className="h-4 w-4 text-(--text-secondary)" />
             </button>
           ) : null}
         </div>
@@ -149,3 +178,5 @@ export default function AyahRow({ surahData, ayahIndex, surahNumber, settings, s
     </div>
   );
 }
+
+export default memo(AyahRow);
