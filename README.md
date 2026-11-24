@@ -42,6 +42,18 @@ Click any image to open it at full size.
 <p align="center">
   <a href="docs/screenshots/screenshot-5.png"><img src="docs/screenshots/screenshot-5.png" alt="Quran Reader Lite — screenshot 5" width="49%" /></a>
 </p>
+<p align="center">
+  <a href="docs/screenshots/screenshot-6.png"><img src="docs/screenshots/screenshot-6.png" alt="Quran Reader Lite — screenshot 6" width="49%" /></a>
+</p>
+<p align="center">
+  <a href="docs/screenshots/screenshot-7.png"><img src="docs/screenshots/screenshot-7.png" alt="Quran Reader Lite — screenshot 7" width="49%" /></a>
+</p>
+<p align="center">
+  <a href="docs/screenshots/screenshot-8.png"><img src="docs/screenshots/screenshot-8.png" alt="Quran Reader Lite — screenshot 8" width="49%" /></a>
+</p>
+<p align="center">
+  <a href="docs/screenshots/screenshot-9.png"><img src="docs/screenshots/screenshot-9.png" alt="Quran Reader Lite — screenshot 9" width="49%" /></a>
+</p>
 
 ---
 
