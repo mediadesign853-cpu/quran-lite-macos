@@ -8,6 +8,21 @@
 
 > 🍎 This repository contains the **macOS** edition only. It builds a universal app for Apple Silicon and Intel Macs.
 
+<p align="center">
+  🌐 Language: <strong>English</strong> · <a href="README-AR.md">العربية</a>
+</p>
+
+---
+
+## ⬇️ Download
+
+Click a link below and the download starts immediately — no GitHub page and no sign-in.
+
+| 🍎 macOS v1.0.0 (universal · Apple Silicon + Intel) | 🪟 Windows v1.0.4 |
+|:---:|:---:|
+| [📥 Download DMG](https://github.com/mediadesign853-cpu/quran-lite-macos/releases/download/v1.0.0/Quran.Reader.Lite-1.0.0-universal.dmg) | [📥 Download Setup](https://github.com/mediadesign853-cpu/Quran-Lite/releases/download/v1.0.4/Quran-Reader-Lite-Setup-1.0.4.exe) |
+| [📥 Download ZIP](https://github.com/mediadesign853-cpu/quran-lite-macos/releases/download/v1.0.0/Quran.Reader.Lite-1.0.0-universal.zip) | [📥 Download Portable](https://github.com/mediadesign853-cpu/Quran-Lite/releases/download/v1.0.4/Quran-Reader-Lite-Portable-1.0.4.exe) |
+
 ---
 
 ## ✨ Features at a glance

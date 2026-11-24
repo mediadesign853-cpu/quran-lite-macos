@@ -8,6 +8,21 @@
 
 > نسخة خفيفة وسريعة لقراءة القرآن الكريم على جهاز الماك. تعمل دون اتصال بالإنترنت، وتحفظ النص العربي كاملاً كما هو، من غير ترجمات ولا تفاسير.
 
+<p align="center">
+  🌐 اللغة: <strong>العربية</strong> · <a href="README.md">English</a>
+</p>
+
+---
+
+## ⬇️ التحميل المباشر
+
+اضغط على الرابط وسيبدأ التنزيل فوراً، دون فتح صفحة GitHub أو تسجيل الدخول.
+
+| 🍎 ماك v1.0.0 (عالمي · Apple Silicon + Intel) | 🪟 ويندوز v1.0.4 |
+|:---:|:---:|
+| [📥 تحميل DMG](https://github.com/mediadesign853-cpu/quran-lite-macos/releases/download/v1.0.0/Quran.Reader.Lite-1.0.0-universal.dmg) | [📥 تحميل Setup](https://github.com/mediadesign853-cpu/Quran-Lite/releases/download/v1.0.4/Quran-Reader-Lite-Setup-1.0.4.exe) |
+| [📥 تحميل ZIP](https://github.com/mediadesign853-cpu/quran-lite-macos/releases/download/v1.0.0/Quran.Reader.Lite-1.0.0-universal.zip) | [📥 تحميل Portable](https://github.com/mediadesign853-cpu/Quran-Lite/releases/download/v1.0.4/Quran-Reader-Lite-Portable-1.0.4.exe) |
+
 ---
 
 ## ✨ نظرة شاملة على الإمكانات
