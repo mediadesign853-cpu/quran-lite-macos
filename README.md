@@ -25,6 +25,26 @@ Click a link below and the download starts immediately — no GitHub page and no
 
 ---
 
+## 📸 Screenshots
+
+Click any image to open it at full size.
+
+<p align="center">
+  <a href="docs/screenshots/screenshot-1.png"><img src="docs/screenshots/screenshot-1.png" alt="Quran Reader Lite — screenshot 1" width="49%" /></a>
+  <a href="docs/screenshots/screenshot-2.png"><img src="docs/screenshots/screenshot-2.png" alt="Quran Reader Lite — screenshot 2" width="49%" /></a>
+</p>
+
+<p align="center">
+  <a href="docs/screenshots/screenshot-3.png"><img src="docs/screenshots/screenshot-3.png" alt="Quran Reader Lite — screenshot 3" width="49%" /></a>
+  <a href="docs/screenshots/screenshot-4.png"><img src="docs/screenshots/screenshot-4.png" alt="Quran Reader Lite — screenshot 4" width="49%" /></a>
+</p>
+
+<p align="center">
+  <a href="docs/screenshots/screenshot-5.png"><img src="docs/screenshots/screenshot-5.png" alt="Quran Reader Lite — screenshot 5" width="49%" /></a>
+</p>
+
+---
+
 ## ✨ Features at a glance
 
 ### 📖 Reading the Quran
