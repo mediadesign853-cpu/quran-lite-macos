@@ -43,12 +43,20 @@ interface BoxesFile {
   p: Record<string, [number, number, number, number, number][]>;
 }
 
+/** In dev the Vite bridge serves the same files over HTTP; production/Electron uses qpage://. */
+const DEV_PAGES = import.meta.env.DEV;
+
 export function hasPageImages(): boolean {
+  if (DEV_PAGES) return true;
   return typeof window !== 'undefined' && window.quranApp?.pages === true;
 }
 
 export function pageUrl(page: number): string {
-  return `qpage://pages/${page}`;
+  return DEV_PAGES ? `/__pages/${page}.webp` : `qpage://pages/${page}`;
+}
+
+export function boxesUrl(): string {
+  return DEV_PAGES ? '/__pages/boxes.json' : 'qpage://pages/boxes.json';
 }
 
 let boxesPromise: Promise<BoxesFile | null> | null = null;
@@ -56,7 +64,7 @@ let boxesPromise: Promise<BoxesFile | null> | null = null;
 /** The ayah rectangles of all pages (null when the file is missing: the pages still show, just unmarked). */
 export function loadBoxes(): Promise<BoxesFile | null> {
   if (!boxesPromise) {
-    boxesPromise = fetch(pageUrl(0).replace('/0', '/boxes.json'))
+    boxesPromise = fetch(boxesUrl())
       .then((res) => (res.ok ? (res.json() as Promise<BoxesFile>) : null))
       .catch(() => null);
   }

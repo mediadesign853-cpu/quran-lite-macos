@@ -439,7 +439,7 @@ export default function SearchBar({ surahs, currentSurah, language, onNavigateSu
               {t ? 'همه' : 'الكل'} ({results.length}{capped ? '+' : ''})
             </TabButton>
             <TabButton active={activeTab === 'surahs'} onClick={() => handleTabChange('surahs')}>
-              {t ? 'Ø³ÙˆØ±Ù‡â€ŒÙ‡Ø§' : 'Ø§Ù„Ø³ÙˆØ±'} ({surahResults.length})
+              {t ? 'سوره‌ها' : 'السور'} ({surahResults.length})
             </TabButton>
             <TabButton active={activeTab === 'ayahs'} onClick={() => handleTabChange('ayahs')}>
               {t ? 'آیات' : 'الآيات'} ({ayahResults.length}{capped ? '+' : ''})
